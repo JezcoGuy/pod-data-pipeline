@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Business health</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background-color: #0f1117;
+      color: #e5e7eb;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 760px;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 18px;
+      padding: 0 4px;
+    }
+    .title    { font-size: 18px; font-weight: 700; color: #f9fafb; }
+    .subtitle { font-size: 13px; color: #6b7280; margin-top: 4px; letter-spacing: 0.02em; }
+    .today    { font-size: 13px; color: #6b7280; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+    }
+
+    .tile {
+      border-radius: 12px;
+      padding: 18px 16px;
+      border: 1px solid;
+      background: #1a1d24;
+      border-color: #2d3139;
+      min-height: 118px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .tile .label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      color: #94a3b8;
+    }
+    .tile .value {
+      font-size: 30px;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      margin-top: 6px;
+      color: #e2e8f0;
+      font-variant-numeric: tabular-nums;
+    }
+    .tile .footer {
+      font-size: 12px;
+      color: #6b7280;
+      display: flex;
+      gap: 8px;
+      align-items: baseline;
+    }
+    .tile .footer .source {
+      font-size: 11px;
+      color: #4b5563;
+      font-style: italic;
+    }
+
+    .tile.green {
+      background: #0d2e1a;
+      border-color: #1a5c32;
+    }
+    .tile.green .label { color: #86efac; }
+    .tile.green .value { color: #4ade80; }
+
+    .tile.amber {
+      background: #2e1f0a;
+      border-color: #7c4f0d;
+    }
+    .tile.amber .label { color: #fdba74; }
+    .tile.amber .value { color: #fb923c; }
+
+    .tile.red {
+      background: #2e0d0d;
+      border-color: #7c1f1f;
+    }
+    .tile.red .label { color: #fca5a5; }
+    .tile.red .value { color: #f87171; }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 18px 4px 12px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #6b7280;
+    }
+    .divider::before, .divider::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: #2a2d3a;
+    }
+
+    .footer {
+      margin-top: 22px;
+      font-size: 11px;
+      color: #4b5563;
+      text-align: center;
+      letter-spacing: 0.03em;
+    }
+    .dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: #22c55e;
+      margin-right: 6px;
+      animation: pulse 2s infinite;
+      vertical-align: middle;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .loading { text-align: center; padding: 40px 0; color: #4b5563; font-style: italic; }
+    .error   { color: #ef4444; padding: 14px; text-align: center; }
+
+    @media (max-width: 580px) {
+      .grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 380px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <div class="card-header">
+    <div>
+      <div class="title">Business health</div>
+      <div class="subtitle">7-day rolling average</div>
+    </div>
+    <div class="today" id="today"></div>
+  </div>
+
+  <div id="body">
+    <div class="loading">Loading…</div>
+  </div>
+
+  <div class="footer" id="footer">Loading…</div>
+</div>
+
+<script>
+  const REFRESH_INTERVAL = 30 * 60 * 1000;
+
+  const TILES = [
+    // Row 1 — P&L
+    { key: 'mer',                    label: 'MER',          period: '7-day avg',   note: null,         row: 1, threshold: true },
+    { key: 'cogs_pct',               label: 'COGS%',        period: '7-day avg',   note: null,         row: 1, threshold: true },
+    { key: 'pl_pct',                 label: 'PnL%',         period: '7-day avg',   note: null,         row: 1, threshold: true },
+    // Row 2 — Funnel
+    { key: 'atc_pct',                label: 'ATC%',         period: '7-day avg',   note: 'Meta pixel', row: 2, threshold: true },
+    { key: 'cr_pct',                 label: 'CR%',          period: '7-day avg',   note: 'GA4',        row: 2, threshold: true },
+    { key: 'cpc',                    label: 'CPC',          period: '7-day avg',   note: null,         row: 2, threshold: true },
+    // Row 3 — Inputs (neutral)
+    { key: 'designs_this_week',      label: 'Designs',      period: 'last 7 days', note: null,         row: 3, threshold: false },
+    { key: 'emails_this_week',       label: 'Emails sent',  period: 'last 7 days', note: null,         row: 3, threshold: false },
+    { key: 'ads_launched_this_week', label: 'Ads launched', period: 'last 7 days', note: null,         row: 3, threshold: false },
+  ];
+
+  function tileColour(metric, value) {
+    if (value === null || value === undefined) return 'neutral';
+    if (metric === 'mer')      return value >= 3.0 ? 'green' : value >= 2.5 ? 'amber' : 'red';
+    if (metric === 'cogs_pct') return value <  42  ? 'green' : value <= 44  ? 'amber' : 'red';
+    if (metric === 'pl_pct')   return value >= 10  ? 'green' : value >= 0   ? 'amber' : 'red';
+    if (metric === 'atc_pct')  return value >= 6   ? 'green' : value >= 3   ? 'amber' : 'red';
+    if (metric === 'cr_pct')   return value >= 2   ? 'green' : 'red';
+    if (metric === 'cpc')      return value <= 0.50 ? 'green' : 'red';
+    return 'neutral';
+  }
+
+  function formatValue(metric, value) {
+    if (value === null || value === undefined) return '—';
+    const n = Number(value);
+    if (metric === 'mer')      return n.toFixed(2) + 'x';
+    if (metric === 'cogs_pct') return n.toFixed(1) + '%';
+    if (metric === 'pl_pct')   return n.toFixed(1) + '%';
+    if (metric === 'atc_pct')  return n.toFixed(1) + '%';
+    if (metric === 'cr_pct')   return n.toFixed(2) + '%';
+    if (metric === 'cpc')      return '£' + n.toFixed(2);
+    return Math.round(n).toString();
+  }
+
+  function renderTile(t, value) {
+    const cls = t.threshold ? tileColour(t.key, value) : 'neutral';
+    const noteHTML = t.note
+      ? `<span class="source">· ${t.note}</span>`
+      : '';
+    return `
+      <div class="tile ${cls}">
+        <div>
+          <div class="label">${t.label}</div>
+          <div class="value">${formatValue(t.key, value)}</div>
+        </div>
+        <div class="footer">
+          <span>${t.period}</span>${noteHTML}
+        </div>
+      </div>
+    `;
+  }
+
+  async function render() {
+    document.getElementById('today').textContent = new Date().toLocaleDateString('en-GB', {
+      weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
+    });
+
+    let d;
+    try {
+      const res = await fetch('/health-snapshot');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      d = await res.json();
+      if (d.error) throw new Error(d.error);
+    } catch (e) {
+      document.getElementById('body').innerHTML =
+        '<div class="error">Failed to load: ' + e.message + '</div>';
+      document.getElementById('footer').textContent = 'Retry on next refresh…';
+      console.error(e);
+      return;
+    }
+
+    const row1 = TILES.filter(t => t.row === 1).map(t => renderTile(t, d[t.key])).join('');
+    const row2 = TILES.filter(t => t.row === 2).map(t => renderTile(t, d[t.key])).join('');
+    const row3 = TILES.filter(t => t.row === 3).map(t => renderTile(t, d[t.key])).join('');
+
+    document.getElementById('body').innerHTML =
+        '<div class="grid">' + row1 + '</div>' +
+        '<div class="grid" style="margin-top:12px;">' + row2 + '</div>' +
+        '<div class="divider">Inputs this week</div>' +
+        '<div class="grid">' + row3 + '</div>';
+
+    document.getElementById('footer').innerHTML =
+      '<span class="dot"></span>Updated ' + d.generated_at +
+      '  ·  auto-refreshes every 30 min';
+  }
+
+  render();
+  setInterval(render, REFRESH_INTERVAL);
+</script>
+</body>
+</html>

@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f1117">
+  <title>Tasks</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    html,body{background:#0f1117;color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:15px;line-height:1.4;min-height:100vh}
+    body{padding-bottom:24px}
+
+    /* Desktop: constrain to phone-like width and centre; mobile: full width */
+    .container{max-width:480px;margin:0 auto;padding:0 1rem}
+
+    .topbar{position:sticky;top:0;background:#0f1117;z-index:100;padding:14px 16px 0;border-bottom:0.5px solid #2d3139}
+    .topbar h1{font-size:17px;font-weight:700;color:#f9fafb;margin-bottom:2px;display:flex;justify-content:space-between;align-items:baseline}
+    .topbar h1 .date{font-size:12px;color:#6b7280;font-weight:400}
+
+    .tabs{display:flex;margin-top:12px;gap:0}
+    .tab{flex:1;background:transparent;border:none;color:#94a3b8;font-size:14px;font-weight:600;padding:12px 0;cursor:pointer;border-bottom:2px solid transparent;font-family:inherit;min-height:44px}
+    .tab.active{color:#f9fafb;border-bottom-color:#f9fafb}
+
+    .panel{padding:16px;display:none}
+    .panel.active{display:block}
+
+    /* Forms */
+    .field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+    label{font-size:12px;font-weight:600;color:#94a3b8;letter-spacing:0.04em;text-transform:uppercase}
+    .input,select,textarea{background:#1a1d24;border:0.5px solid #2d3139;color:#e2e8f0;border-radius:8px;padding:11px 12px;font-size:15px;width:100%;font-family:inherit;-webkit-appearance:none;appearance:none;min-height:44px}
+    select{background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 12 12' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M3 4.5l3 3 3-3' stroke='%2394a3b8' stroke-width='1.4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;background-size:14px;padding-right:34px}
+    textarea{min-height:72px;resize:vertical}
+    input[type=date]{color-scheme:dark}
+    .input:focus,select:focus,textarea:focus{outline:none;border-color:#475569}
+
+    .btn-primary{background:#e2e8f0;color:#0f1117;border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:600;width:100%;cursor:pointer;font-family:inherit;min-height:48px;margin-top:6px}
+    .btn-primary:active{background:#cbd5e1}
+    .btn-primary:disabled{opacity:0.5;background:#475569;color:#e2e8f0}
+    .btn-secondary{background:transparent;border:0.5px solid #2d3139;color:#e2e8f0;border-radius:8px;padding:10px 14px;font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;min-height:44px;flex:1}
+    .btn-secondary:active{background:#1a1d24}
+    .btn-secondary.danger{color:#fca5a5;border-color:#7c1f1f}
+    .btn-secondary.warn{color:#fdba74;border-color:#7c4f0d}
+
+    /* Signal bars */
+    .signals{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+    .signal{border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.35;border:0.5px solid}
+    .signal.warn {background:#2e1f0a;border-color:#7c4f0d;color:#fdba74}
+    .signal.crit {background:#2e0d0d;border-color:#7c1f1f;color:#fca5a5}
+    .signal.ok   {background:#0d2e1a;border-color:#1a5c32;color:#86efac}
+    .signal.watch{background:#0f1f2e;border-color:#1f3c5c;color:#93c5fd}
+    .signal{display:flex;align-items:center;gap:10px}
+    .signal .cat-label{font-size:10px;font-weight:700;letter-spacing:0.10em;text-transform:uppercase;flex-shrink:0;opacity:0.85;min-width:54px}
+    .signal .cat-text{flex:1;min-width:0}
+
+    /* Cards */
+    .cards{display:flex;flex-direction:column;gap:10px}
+    .card{background:#1a1d24;border:0.5px solid #2d3139;border-left:4px solid #639922;border-radius:12px;padding:14px;cursor:pointer;transition:background 120ms ease}
+    .card.amber{border-left-color:#EF9F27}
+    .card.red{border-left-color:#E24B4A}
+    .card:active{background:#1f232b}
+
+    .card-row1{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+    .card-title{font-size:15px;font-weight:600;color:#f9fafb;line-height:1.3}
+    .card-score{font-size:14px;font-weight:700;color:#cbd5e1;font-variant-numeric:tabular-nums;flex-shrink:0}
+    .card-meta{margin-top:6px;font-size:12px;color:#94a3b8;display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
+    .card-meta .due{font-weight:500}
+    .card-meta .dot{color:#475569}
+    .card-meta .notes-flag{color:#64748b}
+
+    .card-expanded{margin-top:12px;padding-top:12px;border-top:0.5px dashed #2d3139;display:flex;flex-direction:column;gap:12px}
+    .card-notes{font-size:14px;color:#cbd5e1;line-height:1.5;white-space:pre-wrap}
+    .card-actions{display:flex;flex-wrap:wrap;gap:8px}
+    .card-actions .btn-secondary{flex:1 1 calc(50% - 4px)}
+
+    .reschedule-row{display:flex;gap:8px;align-items:stretch;margin-top:4px}
+    .reschedule-row input[type=date]{flex:1}
+
+    .empty-state{text-align:center;padding:48px 16px;color:#94a3b8}
+    .empty-state .em{font-size:18px;color:#cbd5e1;margin-bottom:6px}
+    .empty-state .sub{font-size:13px;color:#64748b}
+
+    /* Edit modal */
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:200;display:none;align-items:flex-start;padding:24px 12px;overflow-y:auto}
+    .modal-overlay.active{display:flex}
+    .modal{background:#0f1117;border:0.5px solid #2d3139;border-radius:14px;width:100%;max-width:520px;margin:auto;padding:18px;display:flex;flex-direction:column;gap:0}
+    .modal h2{font-size:16px;font-weight:700;color:#f9fafb;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+    .modal h2 .close{background:transparent;border:none;color:#94a3b8;font-size:22px;cursor:pointer;line-height:1;padding:4px 8px}
+    .modal-actions{display:flex;gap:8px;margin-top:8px}
+
+    /* Toast */
+    .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:#1a1d24;border:0.5px solid #2d3139;color:#e2e8f0;padding:11px 18px;border-radius:10px;font-size:14px;z-index:300;opacity:0;transition:transform 200ms ease,opacity 200ms ease;pointer-events:none;max-width:90vw}
+    .toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+    .toast.err{border-color:#7c1f1f;color:#fca5a5}
+
+    .footer{margin-top:18px;padding:0 16px;font-size:11px;color:#4b5563;text-align:center;letter-spacing:0.03em}
+    .footer .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#22c55e;margin-right:6px;animation:pulse 2s infinite;vertical-align:middle}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+<div class="topbar">
+  <h1>Task Manager <span class="date" id="today"></span></h1>
+  <div class="tabs">
+    <button class="tab" data-tab="add">Add Task</button>
+    <button class="tab active" data-tab="priority">Priority List</button>
+    <button class="tab" data-tab="log">Log Time</button>
+  </div>
+</div>
+
+<!-- Tab 1: Add Task -->
+<div class="panel" id="panel-add">
+  <form id="addForm" autocomplete="off">
+    <div class="field"><label for="addTitle">Title</label>
+      <input class="input" id="addTitle" type="text" required maxlength="500" placeholder="What needs doing?"></div>
+    <div class="field"><label for="addCategory">Category</label>
+      <select id="addCategory" required></select></div>
+    <div class="field"><label for="addDueDate">Due date</label>
+      <input class="input" id="addDueDate" type="date" required></div>
+    <div class="field"><label for="addPriority">Priority</label>
+      <select id="addPriority" required></select></div>
+    <div class="field"><label for="addImpact">Impact if delayed</label>
+      <select id="addImpact" required></select></div>
+    <div class="field"><label for="addType">Type</label>
+      <select id="addType" required></select></div>
+    <div class="field"><label for="addEffort">Effort</label>
+      <select id="addEffort" required></select></div>
+    <div class="field"><label for="addNotes">Notes (optional)</label>
+      <textarea id="addNotes" rows="3" maxlength="2000"></textarea></div>
+    <div class="field"><label for="addPin">🔒 PIN</label>
+      <input class="input" id="addPin" type="password" inputmode="numeric" maxlength="6"
+             placeholder="Enter PIN" autocomplete="off" required></div>
+    <button class="btn-primary" type="submit" id="addSubmit">Add task</button>
+  </form>
+</div>
+
+<!-- Tab 2: Priority List -->
+<div class="panel active" id="panel-priority">
+  <div class="signals" id="signals"></div>
+  <div class="cards" id="cards"><div class="empty-state"><div class="em">Loading…</div></div></div>
+</div>
+
+<!-- Tab 3: Log Time -->
+<div class="panel" id="panel-log">
+  <form id="logForm" autocomplete="off">
+    <div class="field"><label for="logDate">Date</label>
+      <input class="input" id="logDate" type="date" required></div>
+    <div class="field"><label for="logCategory">Category</label>
+      <select id="logCategory" required></select></div>
+    <div class="field"><label for="logDuration">Duration (minutes)</label>
+      <input class="input" id="logDuration" type="number" min="1" step="1" required placeholder="e.g. 45"></div>
+    <div class="field"><label for="logActivity">Activity</label>
+      <input class="input" id="logActivity" type="text" required maxlength="500" placeholder="What did you work on?"></div>
+    <div class="field"><label for="logNotes">Notes (optional)</label>
+      <textarea id="logNotes" rows="2" maxlength="2000"></textarea></div>
+    <div class="field"><label for="logPin">🔒 PIN</label>
+      <input class="input" id="logPin" type="password" inputmode="numeric" maxlength="6"
+             placeholder="Enter PIN" autocomplete="off" required></div>
+    <button class="btn-primary" type="submit" id="logSubmit">Log time</button>
+  </form>
+</div>
+
+<!-- Edit modal -->
+<div class="modal-overlay" id="editModal" role="dialog" aria-modal="true">
+  <div class="modal">
+    <h2>Edit task <button type="button" class="close" id="editClose" aria-label="Close">×</button></h2>
+    <form id="editForm" autocomplete="off">
+      <input type="hidden" id="editTaskId">
+      <div class="field"><label>Title</label><input class="input" id="editTitle" type="text" required maxlength="500"></div>
+      <div class="field"><label>Category</label><select id="editCategory" required></select></div>
+      <div class="field"><label>Due date</label><input class="input" id="editDueDate" type="date" required></div>
+      <div class="field"><label>Priority</label><select id="editPriority" required></select></div>
+      <div class="field"><label>Impact if delayed</label><select id="editImpact" required></select></div>
+      <div class="field"><label>Type</label><select id="editType" required></select></div>
+      <div class="field"><label>Effort</label><select id="editEffort" required></select></div>
+      <div class="field"><label>Notes</label><textarea id="editNotes" rows="3" maxlength="2000"></textarea></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="editCancel">Cancel</button>
+        <button type="submit" class="btn-primary" style="flex:1.5;margin-top:0">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="footer"><span class="dot"></span><span id="updated">—</span> · auto-refreshes every 5 min</div>
+
+</div><!-- /.container -->
+
+<script>
+'use strict';
+
+// ─── Option lists (must match Postgres CHECK constraints exactly) ────────────
+const OPTIONS = {
+  category : ['Design','Ads','Email','Social','Operations','Finance','Strategy','Admin'],
+  priority : ['Low','Medium','High','Critical'],
+  impact   : ['Nothing breaks if it waits','Creates drag / slows growth','Blocks progress or momentum','Causes real problems or losses'],
+  task_type: ['Maintenance','Improvement','Growth'],
+  effort   : ['< 30 minutes','1-2 hours','Half day','Multi-day'],
+};
+
+// ─── State ───────────────────────────────────────────────────────────────────
+let tasks = [];
+let categorySignals = [];   // [{category, level, signal}] — independent of tasks
+let activeTab = 'priority';
+let expandedId = null;
+let reschedulingId = null;
+let refreshTimer = null;
+
+// Display label for each category — what shows in the chip on the left
+const CATEGORY_LABEL = {Design: 'DESIGNS', Ads: 'ADVERTS', Email: 'EMAILS'};
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function $(s){return document.querySelector(s)}
+function $$(s){return [...document.querySelectorAll(s)]}
+function fillSelect(el, opts, includePlaceholder=true){
+  el.innerHTML = (includePlaceholder ? '<option value="" disabled selected>Select…</option>' : '') +
+    opts.map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('');
+}
+function escapeHtml(s){return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function todayISO(offsetDays=0){
+  const d=new Date(); d.setDate(d.getDate()+offsetDays);
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function fmtTimeUpdated(){
+  const d=new Date();
+  return d.toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+}
+
+function showToast(msg, kind='ok'){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.remove('err');
+  if (kind === 'err') t.classList.add('err');
+  t.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ─── API ─────────────────────────────────────────────────────────────────────
+async function api(method, url, body){
+  const opts = {method, headers:{'Content-Type':'application/json'}};
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(url, opts);
+  let parsed = null;
+  try { parsed = await res.json(); } catch (_e) {}
+  if (!res.ok) {
+    const msg = (parsed && parsed.error) ? parsed.error : ('HTTP ' + res.status);
+    const err = new Error(msg);
+    err.status = res.status;
+    err.body   = parsed;
+    throw err;
+  }
+  return parsed;
+}
+
+async function refreshPriority(){
+  try{
+    // Fetch both in parallel; signals are independent of the priority list now
+    // so the three tiles render even when no tasks exist for that category.
+    const [t, s] = await Promise.all([
+      api('GET', '/tasks/priority'),
+      api('GET', '/category-signals'),
+    ]);
+    tasks = t;
+    categorySignals = s;
+    renderSignals();
+    renderCards();
+    $('#updated').textContent = 'Updated ' + fmtTimeUpdated();
+  }catch(e){
+    $('#cards').innerHTML = `<div class="empty-state"><div class="em">Failed to load</div><div class="sub">${escapeHtml(e.message)}</div></div>`;
+  }
+}
+
+// ─── Tabs ────────────────────────────────────────────────────────────────────
+function showTab(name){
+  activeTab = name;
+  $$('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  $$('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-'+name));
+  if (name === 'priority') refreshPriority();
+}
+
+// ─── Render: category signal tiles ───────────────────────────────────────────
+// Always renders one row per category (Designs / Adverts / Emails),
+// background colour from the `level` field on v_category_signals.
+// Decoupled from the task list — works regardless of which Active tasks
+// happen to exist.
+function renderSignals(){
+  const html = (categorySignals || []).map(s => `
+    <div class="signal ${escapeHtml(s.level || 'ok')}">
+      <span class="cat-label">${escapeHtml(CATEGORY_LABEL[s.category] || s.category)}</span>
+      <span class="cat-text">${escapeHtml(s.signal || '')}</span>
+    </div>
+  `).join('');
+  $('#signals').innerHTML = html;
+}
+
+// ─── Render: cards ──────────────────────────────────────────────────────────
+function scoreClass(s){
+  if (s >= 80) return 'red';
+  if (s >= 50) return 'amber';
+  return '';
+}
+
+function renderCards(){
+  const root = $('#cards');
+  if (!tasks.length){
+    root.innerHTML = `<div class="empty-state"><div class="em">✅ All clear — no active tasks</div><div class="sub">Tap "Add Task" to get started</div></div>`;
+    return;
+  }
+  root.innerHTML = tasks.map(t => renderCard(t)).join('');
+  $$('.card').forEach(el => {
+    el.addEventListener('click', ev => {
+      // Don't toggle if clicking a button or input inside expanded card
+      if (ev.target.closest('.card-actions, .reschedule-row, input, button')) return;
+      const id = parseInt(el.dataset.id, 10);
+      expandedId = (expandedId === id) ? null : id;
+      reschedulingId = null;
+      renderCards();
+    });
+  });
+
+  // Wire action buttons inside expanded cards
+  $$('.action-done').forEach(b => b.addEventListener('click', () => markDone(parseInt(b.dataset.id,10))));
+  $$('.action-park').forEach(b => b.addEventListener('click', () => parkTask(parseInt(b.dataset.id,10))));
+  $$('.action-reschedule').forEach(b => b.addEventListener('click', () => { reschedulingId = parseInt(b.dataset.id,10); renderCards(); }));
+  $$('.action-reschedule-cancel').forEach(b => b.addEventListener('click', () => { reschedulingId = null; renderCards(); }));
+  $$('.action-reschedule-confirm').forEach(b => b.addEventListener('click', () => {
+    const id = parseInt(b.dataset.id, 10);
+    const dateEl = document.querySelector(`#reschedule-date-${id}`);
+    if (!dateEl?.value) { showToast('Pick a date first','err'); return; }
+    rescheduleTask(id, dateEl.value);
+  }));
+  $$('.action-edit').forEach(b => b.addEventListener('click', () => openEdit(parseInt(b.dataset.id,10))));
+}
+
+function renderCard(t){
+  const cls = scoreClass(t.score);
+  const expanded = (expandedId === t.task_id);
+  const rescheduling = (reschedulingId === t.task_id);
+  const noteFlag = t.notes ? '<span class="notes-flag">· 📝</span>' : '';
+  return `
+    <div class="card ${cls}" data-id="${t.task_id}">
+      <div class="card-row1">
+        <div class="card-title">${escapeHtml(t.title)}</div>
+        <div class="card-score">${t.score}</div>
+      </div>
+      <div class="card-meta">
+        <span>${escapeHtml(t.category)}</span><span class="dot">·</span>
+        <span>${escapeHtml(t.task_type)}</span><span class="dot">·</span>
+        <span class="due">${escapeHtml(t.due_label)}</span>
+        ${noteFlag}
+      </div>
+      ${expanded ? renderExpandedBody(t, rescheduling) : ''}
+    </div>`;
+}
+
+function renderExpandedBody(t, rescheduling){
+  const notes = t.notes ? `<div class="card-notes">${escapeHtml(t.notes)}</div>` : '';
+  const rescheduleArea = rescheduling
+    ? `<div class="reschedule-row">
+         <input class="input" type="date" id="reschedule-date-${t.task_id}" value="${escapeHtml(t.due_date || '')}">
+         <button type="button" class="btn-secondary action-reschedule-confirm" data-id="${t.task_id}">Confirm</button>
+         <button type="button" class="btn-secondary action-reschedule-cancel" data-id="${t.task_id}">Cancel</button>
+       </div>` : '';
+  const actions = `
+    <div class="card-actions">
+      <button type="button" class="btn-secondary action-done"       data-id="${t.task_id}">✓ Mark Done</button>
+      <button type="button" class="btn-secondary action-reschedule" data-id="${t.task_id}">📅 Reschedule</button>
+      <button type="button" class="btn-secondary warn   action-park" data-id="${t.task_id}">⏸ Park</button>
+      <button type="button" class="btn-secondary       action-edit" data-id="${t.task_id}">✎ Edit</button>
+    </div>`;
+  return `<div class="card-expanded">${notes}${rescheduleArea}${actions}</div>`;
+}
+
+// ─── Actions ─────────────────────────────────────────────────────────────────
+async function markDone(id){
+  try{
+    await api('POST', '/tasks/update', {task_id:id, status:'Done', due_date:null});
+    expandedId = null;
+    showToast('Task marked done ✓');
+    await refreshPriority();
+  }catch(e){ showToast('Failed: '+e.message,'err'); }
+}
+async function parkTask(id){
+  try{
+    await api('POST', '/tasks/update', {task_id:id, status:'Parked', due_date:null});
+    expandedId = null;
+    showToast('Task parked');
+    await refreshPriority();
+  }catch(e){ showToast('Failed: '+e.message,'err'); }
+}
+async function rescheduleTask(id, newDate){
+  try{
+    const r = await api('POST', '/tasks/update', {task_id:id, status:'Active', due_date:newDate});
+    if (r.success === false) throw new Error(r.error || 'update failed');
+    reschedulingId = null;
+    showToast('Rescheduled ✓');
+    await refreshPriority();
+  }catch(e){ showToast('Failed: '+e.message,'err'); }
+}
+
+// ─── Edit modal ──────────────────────────────────────────────────────────────
+function openEdit(id){
+  const t = tasks.find(x => x.task_id === id);
+  if (!t) return;
+  $('#editTaskId').value   = t.task_id;
+  $('#editTitle').value    = t.title || '';
+  $('#editCategory').value = t.category || '';
+  $('#editDueDate').value  = t.due_date || '';
+  $('#editPriority').value = t.priority || '';
+  $('#editImpact').value   = t.impact || '';
+  $('#editType').value     = t.task_type || '';
+  $('#editEffort').value   = t.effort || '';
+  $('#editNotes').value    = t.notes || '';
+  $('#editModal').classList.add('active');
+}
+function closeEdit(){ $('#editModal').classList.remove('active'); }
+
+// ─── Add task ────────────────────────────────────────────────────────────────
+async function submitAdd(ev){
+  ev.preventDefault();
+  const btn = $('#addSubmit'); btn.disabled = true;
+  const body = {
+    title:     $('#addTitle').value.trim(),
+    category:  $('#addCategory').value,
+    priority:  $('#addPriority').value,
+    impact:    $('#addImpact').value,
+    task_type: $('#addType').value,
+    effort:    $('#addEffort').value,
+    due_date:  $('#addDueDate').value,
+    notes:     $('#addNotes').value.trim() || null,
+    pin:       $('#addPin').value,
+  };
+  try{
+    const r = await api('POST', '/tasks/add', body);
+    if (r.success === false) throw new Error(r.error || 'add failed');
+    showToast('Task added ✓');
+    // Clear title/priority/impact/type/effort/notes/pin; keep category + date for fast re-entry
+    $('#addTitle').value    = '';
+    $('#addPriority').value = '';
+    $('#addImpact').value   = '';
+    $('#addType').value     = '';
+    $('#addEffort').value   = '';
+    $('#addNotes').value    = '';
+    $('#addPin').value      = '';
+    showTab('priority');
+  }catch(e){
+    if (e.status === 401){
+      showToast('Incorrect PIN', 'err');
+      $('#addPin').value = '';     // clear PIN only; other fields stay so user can retry
+    } else {
+      showToast('Failed: '+e.message, 'err');
+    }
+  }finally{ btn.disabled = false; }
+}
+
+// ─── Edit submit ─────────────────────────────────────────────────────────────
+async function submitEdit(ev){
+  ev.preventDefault();
+  const body = {
+    task_id:   parseInt($('#editTaskId').value, 10),
+    title:     $('#editTitle').value.trim(),
+    category:  $('#editCategory').value,
+    priority:  $('#editPriority').value,
+    impact:    $('#editImpact').value,
+    task_type: $('#editType').value,
+    effort:    $('#editEffort').value,
+    due_date:  $('#editDueDate').value,
+    notes:     $('#editNotes').value.trim() || null,
+  };
+  try{
+    const r = await api('POST', '/tasks/edit', body);
+    if (r.success === false) throw new Error(r.error || 'edit failed');
+    closeEdit();
+    showToast('Saved ✓');
+    await refreshPriority();
+  }catch(e){ showToast('Failed: '+e.message,'err'); }
+}
+
+// ─── Log time submit ─────────────────────────────────────────────────────────
+async function submitLog(ev){
+  ev.preventDefault();
+  const btn = $('#logSubmit'); btn.disabled = true;
+  const body = {
+    log_date:         $('#logDate').value,
+    category:         $('#logCategory').value,
+    duration_minutes: parseInt($('#logDuration').value, 10),
+    activity:         $('#logActivity').value.trim(),
+    notes:            $('#logNotes').value.trim() || null,
+    pin:              $('#logPin').value,
+  };
+  try{
+    const r = await api('POST', '/time-log/add', body);
+    if (r.success === false) throw new Error(r.error || 'log failed');
+    showToast('Time logged ✓');
+    // Keep date + category; clear the rest (including PIN)
+    $('#logDuration').value = '';
+    $('#logActivity').value = '';
+    $('#logNotes').value    = '';
+    $('#logPin').value      = '';
+  }catch(e){
+    if (e.status === 401){
+      showToast('Incorrect PIN', 'err');
+      $('#logPin').value = '';
+    } else {
+      showToast('Failed: '+e.message, 'err');
+    }
+  }finally{ btn.disabled = false; }
+}
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+function init(){
+  // Header date
+  $('#today').textContent = new Date().toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+
+  // Populate selects
+  fillSelect($('#addCategory'),  OPTIONS.category);
+  fillSelect($('#addPriority'),  OPTIONS.priority);
+  fillSelect($('#addImpact'),    OPTIONS.impact);
+  fillSelect($('#addType'),      OPTIONS.task_type);
+  fillSelect($('#addEffort'),    OPTIONS.effort);
+
+  fillSelect($('#editCategory'), OPTIONS.category, false);
+  fillSelect($('#editPriority'), OPTIONS.priority, false);
+  fillSelect($('#editImpact'),   OPTIONS.impact,   false);
+  fillSelect($('#editType'),     OPTIONS.task_type,false);
+  fillSelect($('#editEffort'),   OPTIONS.effort,   false);
+
+  fillSelect($('#logCategory'),  OPTIONS.category);
+
+  // Defaults
+  $('#addDueDate').value = todayISO(1);     // tomorrow
+  $('#logDate').value    = todayISO(0);     // today
+
+  // Tab bar
+  $$('.tab').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+
+  // Forms
+  $('#addForm').addEventListener('submit', submitAdd);
+  $('#logForm').addEventListener('submit', submitLog);
+  $('#editForm').addEventListener('submit', submitEdit);
+  $('#editClose').addEventListener('click', closeEdit);
+  $('#editCancel').addEventListener('click', closeEdit);
+  $('#editModal').addEventListener('click', ev => { if (ev.target === ev.currentTarget) closeEdit(); });
+
+  // First load + auto-refresh
+  refreshPriority();
+  refreshTimer = setInterval(refreshPriority, 5 * 60 * 1000);
+}
+
+if (document.readyState !== 'loading') init();
+else document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

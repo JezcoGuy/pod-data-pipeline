@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monthly P&amp;L</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background-color: #0f1117;
+      color: #e5e7eb;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 600px;
+      background-color: #1a1d27;
+      border: 1px solid #2a2d3a;
+      border-radius: 14px;
+      padding: 22px 24px 18px;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 1px solid #2a2d3a;
+      padding-bottom: 14px;
+      margin-bottom: 14px;
+    }
+    .title       { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+    .month-label { font-size: 15px; font-weight: 600; color: #9ca3af; }
+    .subtitle    { font-size: 12px; color: #6b7280; margin-top: 4px; letter-spacing: 0.02em; }
+
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #6b7280;
+      margin: 16px 0 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-label::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: #2a2d3a;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 12px;
+      align-items: baseline;
+      padding: 6px 0;
+      font-size: 14px;
+    }
+    .row .label  { color: #d1d5db; }
+    .row .amount { color: #f3f4f6; font-variant-numeric: tabular-nums; text-align: right; min-width: 110px; }
+    .row .pct    { color: #6b7280; font-variant-numeric: tabular-nums; text-align: right; min-width: 80px; font-size: 12px; }
+
+    .row.subtotal { font-weight: 600; border-top: 1px solid #2a2d3a; padding-top: 8px; margin-top: 4px; }
+    .row.subtotal .pct { color: #9ca3af; }
+
+    .row.headline {
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin: 14px -12px 4px;
+      font-weight: 700;
+      font-size: 15px;
+    }
+    .row.headline.positive { background: rgba(34, 197, 94, 0.12); }
+    .row.headline.positive .label, .row.headline.positive .amount, .row.headline.positive .pct { color: #22c55e; }
+    .row.headline.negative { background: rgba(239, 68, 68, 0.12); }
+    .row.headline.negative .label, .row.headline.negative .amount, .row.headline.negative .pct { color: #ef4444; }
+
+    .row.recon-gap .label { font-weight: 600; }
+    .flag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+    .flag.amber { background: rgba(245, 158, 11, 0.18); color: #f59e0b; }
+    .flag.red   { background: rgba(239, 68, 68, 0.18);  color: #ef4444; }
+
+    .footer {
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid #2a2d3a;
+      font-size: 11px;
+      color: #4b5563;
+      text-align: center;
+      letter-spacing: 0.03em;
+    }
+    .dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: #22c55e;
+      margin-right: 6px;
+      animation: pulse 2s infinite;
+      vertical-align: middle;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .loading { color: #4b5563; font-style: italic; }
+    .error   { color: #ef4444; padding: 14px; text-align: center; }
+  </style>
+</head>
+<body>
+
+<div class="card" id="card">
+  <div class="card-header">
+    <div>
+      <div class="title">Monthly P&amp;L</div>
+      <div class="subtitle" id="subtitle">Loading…</div>
+    </div>
+    <div class="month-label" id="month-label">—</div>
+  </div>
+
+  <div id="body">
+    <div class="loading" style="padding:40px 0; text-align:center;">Loading…</div>
+  </div>
+
+  <div class="footer" id="footer">Loading…</div>
+</div>
+
+<script>
+  const REFRESH_INTERVAL = 30 * 60 * 1000;  // 30 minutes — view refreshes via nightly syncs
+
+  function gbp(v) {
+    return '£' + Math.abs(Number(v) || 0).toLocaleString('en-GB', {
+      minimumFractionDigits: 2, maximumFractionDigits: 2
+    });
+  }
+  function pctOfRevenue(v, revenue) {
+    if (!revenue) return '(0%)';
+    return '(' + Math.abs((v / revenue * 100)).toFixed(1) + '%)';
+  }
+  function marginPct(v, revenue) {
+    if (!revenue) return '0%';
+    return (v / revenue * 100).toFixed(1) + '%';
+  }
+  function reconFlag(gap) {
+    const abs = Math.abs(Number(gap) || 0);
+    if (abs > 20) return '<span class="flag red">Investigate</span>';
+    if (abs > 10) return '<span class="flag amber">Review — likely Amex lag</span>';
+    return '';
+  }
+  function gapPctDisplay(gap) {
+    const abs = Math.abs(Number(gap) || 0);
+    const txt = (Number(gap) || 0).toFixed(1) + '%';
+    if (abs > 5 && abs <= 10) return '<span style="color:#f59e0b">' + txt + '</span>';
+    return txt;
+  }
+
+  function row(label, amount, pctText, opts = {}) {
+    const cls = opts.cls ? ' ' + opts.cls : '';
+    const amt = opts.signed
+      ? (amount < 0 ? '-' + gbp(amount) : gbp(amount))
+      : gbp(amount);
+    const pct = pctText === '' ? '' : `<span class="pct">${pctText}</span>`;
+    return `<div class="row${cls}"><span class="label">${label}</span><span class="amount">${amt}</span>${pct}</div>`;
+  }
+
+  function rawRow(label, amountHTML, pctHTML, opts = {}) {
+    const cls = opts.cls ? ' ' + opts.cls : '';
+    return `<div class="row${cls}"><span class="label">${label}</span><span class="amount">${amountHTML}</span><span class="pct">${pctHTML}</span></div>`;
+  }
+
+  function sectionLabel(text) {
+    return `<div class="section-label">${text}</div>`;
+  }
+
+  async function render() {
+    let d;
+    try {
+      const res = await fetch('/pl-monthly');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      d = await res.json();
+      if (d.error) throw new Error(d.error);
+    } catch (e) {
+      document.getElementById('body').innerHTML =
+        '<div class="error">Failed to load: ' + e.message + '</div>';
+      document.getElementById('footer').textContent = 'Retry on next refresh…';
+      console.error(e);
+      return;
+    }
+
+    document.getElementById('month-label').textContent = d.month_label;
+    document.getElementById('subtitle').textContent =
+      d.orders + ' orders  ·  AOV ' + gbp(d.aov);
+
+    const opCls    = d.operating_profit >= 0 ? 'headline positive' : 'headline negative';
+    const cashCls  = d.net_cash         >= 0 ? 'headline positive' : 'headline negative';
+    const rev      = d.gross_revenue;
+
+    const html = [
+      sectionLabel('Revenue'),
+      row('Gross revenue', d.gross_revenue, '100%'),
+      rawRow('Refunds', '-' + gbp(d.refunds), pctOfRevenue(d.refunds, rev)),
+      rawRow('Net revenue', gbp(d.net_revenue), marginPct(d.net_revenue, rev), {cls: 'subtotal'}),
+
+      sectionLabel('Cost of Goods'),
+      rawRow('Fulfilment', '-' + gbp(d.cogs_orders), pctOfRevenue(d.cogs_orders, rev)),
+      rawRow('Gross profit', gbp(d.gross_profit), d.gross_margin_pct.toFixed(1) + '%', {cls: 'subtotal'}),
+
+      sectionLabel('Marketing'),
+      rawRow('Meta ad spend', '-' + gbp(d.meta_spend), pctOfRevenue(d.meta_spend, rev)),
+      rawRow('After meta', gbp(d.after_meta), 'MER ' + d.mer.toFixed(2) + 'x · ' + d.after_meta_pct.toFixed(1) + '%', {cls: 'subtotal'}),
+
+      sectionLabel('Fees &amp; Overheads'),
+      rawRow('Payment fees', '-' + gbp(d.payment_fees), pctOfRevenue(d.payment_fees, rev)),
+      rawRow('Overheads (Amex + Monzo)', '-' + gbp(d.total_overheads - d.payment_fees), pctOfRevenue(d.total_overheads - d.payment_fees, rev)),
+
+      rawRow('OPERATING PROFIT', gbp(d.operating_profit), d.operating_margin_pct.toFixed(1) + '%', {cls: opCls}),
+
+      sectionLabel('Below the Line'),
+      rawRow('Tax (HMRC / VAT)', gbp(d.tax), pctOfRevenue(d.tax, rev)),
+      rawRow('Director drawings', '-' + gbp(d.drawings), pctOfRevenue(d.drawings, rev)),
+
+      rawRow('NET CASH CONTRIBUTION', gbp(d.net_cash), d.net_cash_pct.toFixed(1) + '%', {cls: cashCls}),
+
+      sectionLabel('Reconciliation'),
+      rawRow('Monzo net movement', (d.monzo_net_movement < 0 ? '-' : '') + gbp(d.monzo_net_movement), d.monzo_net_pct.toFixed(1) + '%'),
+      rawRow('Pending Shopify payouts', gbp(d.pending_payouts), ''),
+      rawRow('Reconciliation gap', gapPctDisplay(d.reconciliation_gap_pct) + reconFlag(d.reconciliation_gap_pct), '', {cls: 'recon-gap'}),
+    ].join('');
+
+    document.getElementById('body').innerHTML = html;
+    document.getElementById('footer').innerHTML =
+      '<span class="dot"></span>Updated ' + d.generated_at + '  ·  auto-refreshes every 30 min';
+  }
+
+  render();
+  setInterval(render, REFRESH_INTERVAL);
+</script>
+</body>
+</html>

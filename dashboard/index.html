@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Dashboard</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background-color: #0f1117;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    .card {
+      background-color: #1a1d27;
+      border-radius: 12px;
+      padding: 18px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 90px;
+      border: 1px solid #2a2d3a;
+    }
+
+    .card.full-width {
+      grid-column: 1 / -1;
+    }
+
+    .card.highlight {
+      border: 1px solid #2a2d3a;
+      background-color: #1e2130;
+    }
+
+    .label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #6b7280;
+      margin-bottom: 8px;
+    }
+
+    .value {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+
+    .value.large {
+      font-size: 38px;
+    }
+
+    .mer-green { color: #22c55e; }
+    .mer-amber { color: #f59e0b; }
+    .mer-red   { color: #ef4444; }
+
+    .net-positive { color: #22c55e; }
+    .net-negative { color: #ef4444; }
+
+    .value-default { color: #f9fafb; }
+
+    .timestamp {
+      margin-top: 16px;
+      font-size: 11px;
+      color: #4b5563;
+      text-align: center;
+      letter-spacing: 0.03em;
+    }
+
+    .dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: #22c55e;
+      margin-right: 5px;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .loading {
+      color: #4b5563;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="grid" id="dashboard">
+    <div class="card highlight" id="card-mer">
+      <div class="label">MER</div>
+      <div class="value large loading" id="val-mer">&mdash;</div>
+    </div>
+    <div class="card highlight" id="card-net">
+      <div class="label">Est. Net</div>
+      <div class="value large loading" id="val-net">&mdash;</div>
+    </div>
+    <div class="card">
+      <div class="label">Revenue</div>
+      <div class="value value-default" id="val-revenue">&mdash;</div>
+    </div>
+    <div class="card">
+      <div class="label">Ad Spend</div>
+      <div class="value value-default" id="val-spend">&mdash;</div>
+    </div>
+    <div class="card">
+      <div class="label">Orders</div>
+      <div class="value value-default" id="val-orders">&mdash;</div>
+    </div>
+    <div class="card">
+      <div class="label">Items</div>
+      <div class="value value-default" id="val-items">&mdash;</div>
+    </div>
+    <div class="card full-width">
+      <div class="label">Avg Order Value</div>
+      <div class="value value-default" id="val-aov">&mdash;</div>
+    </div>
+  </div>
+
+  <div class="timestamp" id="timestamp">Loading...</div>
+
+  <script>
+    const REFRESH_INTERVAL = 10 * 60 * 1000;
+
+    function formatGBP(val) {
+      return '£' + Number(val).toLocaleString('en-GB', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+    }
+
+    function getMerClass(mer) {
+      if (mer >= 2.3) return 'mer-green';
+      if (mer >= 2.0) return 'mer-amber';
+      return 'mer-red';
+    }
+
+    function getNetClass(net) {
+      return net >= 0 ? 'net-positive' : 'net-negative';
+    }
+
+    async function fetchSnapshot() {
+      try {
+        const res = await fetch('/snapshot');
+        if (!res.ok) throw new Error('API error');
+        const d = await res.json();
+
+        const merEl = document.getElementById('val-mer');
+        merEl.textContent = Number(d.mer).toFixed(2) + 'x';
+        merEl.className = 'value large ' + getMerClass(d.mer);
+
+        const netEl = document.getElementById('val-net');
+        netEl.textContent = formatGBP(d.est_net);
+        netEl.className = 'value large ' + getNetClass(d.est_net);
+
+        document.getElementById('val-revenue').textContent = formatGBP(d.revenue);
+        document.getElementById('val-spend').textContent = formatGBP(d.ad_spend);
+        document.getElementById('val-orders').textContent = d.orders;
+        document.getElementById('val-items').textContent = d.items;
+        document.getElementById('val-aov').textContent = formatGBP(d.aov);
+
+        document.getElementById('timestamp').innerHTML =
+          '<span class="dot"></span>Updated ' + d.snapshot_at;
+
+      } catch (err) {
+        document.getElementById('timestamp').textContent = 'Failed to load — retrying...';
+        console.error(err);
+      }
+    }
+
+    fetchSnapshot();
+    setInterval(fetchSnapshot, REFRESH_INTERVAL);
+  </script>
+
+</body>
+</html>
