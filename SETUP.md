@@ -6,6 +6,27 @@ Share this document with Claude Chat (claude.ai). Claude will work through each 
 
 You don't need to be a developer to follow this. If a step feels confusing, paste the confusing bit into Claude Chat and it will explain.
 
+## ⚠️ Critical — Timezone Configuration
+
+**Set this correctly before running anything else.**
+
+All date truncation in this pipeline uses `AT TIME ZONE 'Europe/London'` by default. If your business operates in a different timezone you must update this consistently across every sync script, SQL view and dashboard query before your first data sync.
+
+Getting this wrong causes orders placed after 11pm local time to appear on the wrong date — a subtle but significant data quality issue that is very difficult to spot and painful to fix retrospectively.
+
+### Questions to answer before setup:
+- What timezone are you in? (e.g. `America/New_York`, `Australia/Sydney`)
+- Where is your VPS located? (server timezone ≠ business timezone)
+- What timezone do you want your data reported in? (always use your business timezone)
+
+### What needs updating:
+- All SQL views in `sql/views/` — every `AT TIME ZONE` reference
+- All Metabase queries — every date truncation
+- All sync scripts — any date-based filtering
+- FastAPI endpoints — any date calculations
+
+Claude Chat can help you find and update every occurrence during Step 2 onboarding. A global search for `Europe/London` across the repo will show every location that needs changing.
+
 ## Step 1 — Server
 
 - What VPS provider are you using? (Hetzner recommended — CX32 at ~£8/mo)
