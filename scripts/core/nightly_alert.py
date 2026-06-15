@@ -30,11 +30,13 @@ from dotenv import load_dotenv
 
 load_dotenv("/opt/your_brand_id/.env")
 
-SMTP_HOST   = os.getenv('SMTP_HOST', 'smtp.fastmail.com')
-SMTP_PORT   = int(os.getenv('SMTP_PORT', '465'))
-SMTP_USER   = os.getenv('SMTP_FROM')
+SMTP_HOST   = os.getenv('SMTP_HOST')
+# Use 587 (STARTTLS) by default — works on most VPS providers. 465 is
+# implicit SSL and is blocked by some providers (e.g. Hetzner outbound).
+SMTP_PORT   = int(os.getenv('SMTP_PORT', '587'))
+SMTP_USER   = os.getenv('SMTP_USER') or os.getenv('SMTP_FROM')
 SMTP_PASS   = os.getenv('SMTP_PASS')
-SMTP_FROM   = os.getenv('SMTP_FROM')
+SMTP_FROM   = os.getenv('SMTP_FROM') or SMTP_USER
 SMTP_TO     = os.getenv('SMTP_TO')
 BRAND_ID    = os.getenv('BRAND_ID', 'your_brand_id')
 
@@ -384,9 +386,18 @@ def send_email(body, test_mode=False):
     msg.set_content(body)
 
     try:
-        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as server:
-            server.login(SMTP_USER, SMTP_PASS)
-            server.send_message(msg)
+        if SMTP_PORT == 465:
+            # Implicit SSL
+            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as server:
+                server.login(SMTP_USER, SMTP_PASS)
+                server.send_message(msg)
+        else:
+            # STARTTLS (port 587 or other) — preferred
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+                server.ehlo()
+                server.starttls()
+                server.login(SMTP_USER, SMTP_PASS)
+                server.send_message(msg)
         logger.info(f'Alert sent to {SMTP_TO}')
         return True
     except Exception as e:

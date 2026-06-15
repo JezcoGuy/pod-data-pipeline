@@ -42,9 +42,11 @@ CREATE TABLE IF NOT EXISTS ga4_channels_daily (
     channel_group            VARCHAR(64)     NOT NULL DEFAULT '(not set)',
                               -- GA4 default channel grouping (Paid Social,
                               -- Organic Search, Direct, Email, Referral, etc.)
-    source                   VARCHAR(255)    NOT NULL DEFAULT '(not set)',
-    medium                   VARCHAR(128)    NOT NULL DEFAULT '(not set)',
-    campaign                 VARCHAR(255)    NOT NULL DEFAULT '(not set)',
+    -- UTM dimensions widened to TEXT in v8.27 — malformed UTMs from Meta
+    -- can be hundreds of chars and were silently dropping rows.
+    source                   TEXT            NOT NULL DEFAULT '(not set)',
+    medium                   TEXT            NOT NULL DEFAULT '(not set)',
+    campaign                 TEXT            NOT NULL DEFAULT '(not set)',
                               -- UTM campaign value; joinable to
                               -- ad_campaigns.campaign_name for Meta attribution
 

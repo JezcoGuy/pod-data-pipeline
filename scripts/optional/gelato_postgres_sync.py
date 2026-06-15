@@ -5,6 +5,11 @@ Syncs Gelato order data to PostgreSQL.
 Writes to unified fulfilments table (provider agnostic).
 Also re-checks in_transit orders to catch delivery status updates.
 
+NOTE: Gelato costs are stored as-is in the pipeline's base currency.
+If your Gelato account operates in a different currency than your
+Shopify store, costs will need manual FX conversion.
+Full multi-currency support is planned for a future release.
+
 API: Gelato API v4
 Author: Your Brand Data Pipeline
 

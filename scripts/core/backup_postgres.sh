@@ -19,17 +19,33 @@
 set -euo pipefail
 
 # ─── Config ──────────────────────────────────────────────────────────────────
-ENV_FILE="/opt/your_brand_id/.env"
-BACKUP_DIR="/opt/your_brand_id/backups/postgres"
-LOG_FILE="/opt/your_brand_id/logs/backup.log"
-ALERT_SCRIPT="/opt/your_brand_id/scripts/send_alert.py"
-CONTAINER="your_brand_id_postgres"
-DB_NAME="your_db_name"
-DB_USER="your_db_user"
+# Repo root resolved from this script's own location so the file works
+# whatever the deployment path. .env lives at the repo root.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+ENV_FILE="$REPO_ROOT/.env"
+BACKUP_DIR="$REPO_ROOT/backups/postgres"
+LOG_FILE="$REPO_ROOT/logs/backup.log"
+ALERT_SCRIPT="$SCRIPT_DIR/send_alert.py"
 RETENTION_DAYS=30
 
+mkdir -p "$BACKUP_DIR" "$(dirname "$LOG_FILE")"
+
+# Read just the keys we need from .env — see apply_migrations.sh for the
+# same pattern. Fails fast (`:?`) if a required key is missing.
+DB_PASSWORD=$(grep -E '^DB_PASSWORD=' "$ENV_FILE" | head -1 | cut -d= -f2-)
+DB_NAME=$(grep     -E '^DB_NAME='     "$ENV_FILE" | head -1 | cut -d= -f2-)
+DB_USER=$(grep     -E '^DB_USER='     "$ENV_FILE" | head -1 | cut -d= -f2-)
+BRAND_ID=$(grep    -E '^BRAND_ID='    "$ENV_FILE" | head -1 | cut -d= -f2-)
+: "${DB_PASSWORD:?DB_PASSWORD not set in ${ENV_FILE}}"
+: "${DB_NAME:?DB_NAME not set in ${ENV_FILE}}"
+: "${DB_USER:?DB_USER not set in ${ENV_FILE}}"
+: "${BRAND_ID:?BRAND_ID not set in ${ENV_FILE}}"
+
+CONTAINER="${BRAND_ID}_postgres"
+
 STAMP=$(date +%F)                                           # e.g. 2026-06-13
-FINAL="${BACKUP_DIR}/your_brand_id_${STAMP}.sql.gz"
+FINAL="${BACKUP_DIR}/${BRAND_ID}_${STAMP}.sql.gz"
 PARTIAL="${FINAL}.partial"
 
 # ─── Logging helper ──────────────────────────────────────────────────────────
@@ -60,13 +76,6 @@ $(tail -30 ${LOG_FILE} 2>/dev/null || echo '(log unreadable)')"
 }
 trap 'on_error $LINENO' ERR
 
-# ─── Extract DB_PASSWORD from .env ───────────────────────────────────────────
-# Targeted grep instead of full-file sourcing (`set -a; . file`): unrelated
-# values in .env can contain `@`, `$`, spaces etc. that bash would mis-parse
-# as commands. Reads only the one key we need.
-DB_PASSWORD=$(grep -E '^DB_PASSWORD=' "$ENV_FILE" | head -1 | cut -d= -f2-)
-: "${DB_PASSWORD:?DB_PASSWORD not found in ${ENV_FILE}}"
-
 log "Starting dump of ${DB_NAME} → ${FINAL}"
 
 # ─── Dump ────────────────────────────────────────────────────────────────────
@@ -85,7 +94,7 @@ log "OK: wrote ${FINAL} (${SIZE})"
 
 # ─── Retention sweep ─────────────────────────────────────────────────────────
 # Sort by filename (YYYY-MM-DD sorts chronologically), keep newest N.
-mapfile -t ALL < <(ls -1 "${BACKUP_DIR}"/your_brand_id_*.sql.gz 2>/dev/null | sort)
+mapfile -t ALL < <(ls -1 "${BACKUP_DIR}"/${BRAND_ID}_*.sql.gz 2>/dev/null | sort)
 KEEP=$(( ${#ALL[@]} > RETENTION_DAYS ? RETENTION_DAYS : ${#ALL[@]} ))
 DELETE_COUNT=$(( ${#ALL[@]} - KEEP ))
 
@@ -96,5 +105,5 @@ if (( DELETE_COUNT > 0 )); then
   done
 fi
 
-log "Retention: kept $(ls -1 "${BACKUP_DIR}"/your_brand_id_*.sql.gz | wc -l) file(s), max=${RETENTION_DAYS}"
+log "Retention: kept $(ls -1 "${BACKUP_DIR}"/${BRAND_ID}_*.sql.gz | wc -l) file(s), max=${RETENTION_DAYS}"
 log "Done"

@@ -316,7 +316,7 @@ def fetch_ad_metadata(single_ad_id=None):
     url = f"{META_BASE}/act_{META_AD_ACCOUNT_ID}/ads"
     params = {
         "fields": AD_META_FIELDS,
-        "limit": 100,
+        "limit": int(os.getenv("META_PAGE_SIZE", "100")),
         # Default Meta behaviour returns ACTIVE+PAUSED. For backfill of older
         # ads, callers can re-run with effective_status filter widened later.
     }
@@ -380,7 +380,7 @@ def fetch_ad_day_insights(lookback_days, single_ad_id=None, chunk_days=7):
                 "until": chunk_until.isoformat(),
             }),
             "time_increment": 1,
-            "limit":          100,
+            "limit":          int(os.getenv("META_PAGE_SIZE", "100")),
         }
         if single_ad_id:
             params["filtering"] = json.dumps([

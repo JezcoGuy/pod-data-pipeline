@@ -8,7 +8,10 @@
 
 BEGIN;
 
-CREATE TABLE IF NOT EXISTS live_snapshot (
+-- v1.1: was IF NOT EXISTS, which silently skipped on fresh builds where v8.00
+-- had a stale shape. Drop-then-create makes this idempotent and authoritative.
+DROP TABLE IF EXISTS live_snapshot;
+CREATE TABLE live_snapshot (
     id                          BIGSERIAL       PRIMARY KEY,
     snapshot_at                 TIMESTAMPTZ     NOT NULL,
     snapshot_date               DATE            NOT NULL,

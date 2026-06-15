@@ -1,0 +1,17 @@
+# GA4
+google-analytics-data>=0.18.0
+google-auth>=2.28.0
+
+# Google Search Console
+google-api-python-client>=2.118.0
+
+# Klaviyo
+klaviyo-api>=6.1.0
+
+# Xero
+xero-python>=6.0.0
+
+# PayPal (uses requests — already in core)
+
+# Metabase API extraction (setup only)
+# No extra deps needed

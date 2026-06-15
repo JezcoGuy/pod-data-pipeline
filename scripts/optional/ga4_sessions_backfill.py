@@ -1,8 +1,31 @@
 """
 ga4_sessions_backfill.py
 ========================
-Ingest pre-GA4 session/funnel metrics from the Your Brand daily-stats CSV
-into ga4_sessions_backfill. Source = Shopify Analytics spreadsheet
+IMPORTANT: This script ingests a SPECIFIC manually-tracked CSV of session
+data (Shopify Analytics export format, Jul 2025 → May 2026) from the
+original author's store. It is NOT a generic GA4 API backfill tool.
+
+FOR NEW USERS:
+- GA4 history is available via ga4_sync.py --lookback-days N
+  (limited to your GA4 property's data retention, typically ~14 months)
+- If you have your own pre-GA4 session history in CSV format, you can
+  adapt this script — see the column mapping at the top for the expected
+  CSV schema
+- If you have no pre-GA4 history, simply skip this script entirely
+
+Expected CSV columns (0-indexed):
+  Col 0:  DATE (format: "Tuesday, Jul 1, 2025")
+  Col 34: SESSIONS
+  Col 35: ATC (add to cart count)
+  Col 36: ATC%
+  Col 37: RC (reached checkout count)
+  Col 38: IC% (initiate checkout %)
+  Col 13: CR%
+  Col 32: ORDERS
+
+Original ingest context:
+Ingest pre-GA4 session/funnel metrics from a manually-tracked daily-stats
+CSV into ga4_sessions_backfill. Source = Shopify Analytics spreadsheet
 manually tracked Jul 2025 → May 8 2026 (the day before live GA4 sync
 started). Each backfill row is marked data_source='shopify_analytics' so
 v_sessions_daily can distinguish it from live GA4 rows downstream.

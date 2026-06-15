@@ -3,6 +3,13 @@
 -- Version: 7.0
 -- Last Updated: May 2026
 -- =============================================================================
+-- CURRENCY NOTE:
+-- Columns named _gbp store values in whatever currency your Shopify store
+-- uses. If your store trades in USD, these columns contain USD values.
+-- The _gbp suffix reflects the original author's GBP store.
+-- See SETUP.md for the currency normalisation note.
+-- A full FX/multi-currency layer is planned for a future release.
+-- =============================================================================
 -- v7.0 changes from v6.0:
 -- - orders: financial_status, refund_amount_gbp, refund_by_gateway_json, refunded_at added
 -- - returns: redesigned — shopify/paypal/klarna refund fields removed
@@ -103,7 +110,13 @@ CREATE TABLE IF NOT EXISTS orders (
                                 CHECK (fulfillment_provider IN ('gelato','printify','manual','other')),
 
     line_items_count        INTEGER         DEFAULT 0,
-    override_flag           BOOLEAN         DEFAULT FALSE
+    override_flag           BOOLEAN         DEFAULT FALSE,
+
+    -- Fulfillment / cancellation / gateway (v1.1)
+    shopify_fulfillment_status  VARCHAR(50),
+    cancelled_at                TIMESTAMPTZ,
+    cancel_reason               VARCHAR(100),
+    primary_gateway             VARCHAR(100)
 );
 
 CREATE INDEX IF NOT EXISTS idx_orders_brand_date           ON orders (brand_id, created_at DESC);
@@ -290,7 +303,21 @@ CREATE TABLE IF NOT EXISTS customers (
     revenue_ltv         NUMERIC(10,4)   DEFAULT 0,
     profit_ltv          NUMERIC(10,4)   DEFAULT 0,
     ltv_updated_at      TIMESTAMPTZ,
-    PRIMARY KEY (customer_email, brand_id)
+
+    -- Contact + marketing consent (v1.1)
+    customer_phone               VARCHAR(50),
+    first_name                   VARCHAR(100),
+    last_name                    VARCHAR(100),
+    email_marketing_state        VARCHAR(50),
+    email_marketing_opt_in_level VARCHAR(50),
+    email_consent_updated_at     TIMESTAMPTZ,
+    sms_marketing_state          VARCHAR(50),
+    sms_marketing_opt_in_level   VARCHAR(50),
+    sms_consent_updated_at       TIMESTAMPTZ,
+
+    PRIMARY KEY (customer_email, brand_id),
+    CONSTRAINT customers_customer_id_brand_id_unique
+        UNIQUE (customer_id, brand_id)
 );
 
 -- =============================================================================
@@ -659,19 +686,12 @@ CREATE TABLE IF NOT EXISTS customer_service_tickets (
 -- 20. LIVE SNAPSHOT (hourly mobile dashboard)
 -- =============================================================================
 
-CREATE TABLE IF NOT EXISTS live_snapshot (
-    snapshot_at         TIMESTAMPTZ     PRIMARY KEY,
-    brand_id            VARCHAR(64)     NOT NULL,
-    revenue_today       NUMERIC(10,4)   DEFAULT 0,
-    orders_today        INTEGER         DEFAULT 0,
-    revenue_last_hour   NUMERIC(10,4)   DEFAULT 0,
-    orders_last_hour    INTEGER         DEFAULT 0,
-    ad_spend_today      NUMERIC(10,4)   DEFAULT 0,
-    ad_spend_meta       NUMERIC(10,4)   DEFAULT 0,
-    ad_spend_google     NUMERIC(10,4)   DEFAULT 0,
-    mer_today           NUMERIC(8,4),
-    expires_at          TIMESTAMPTZ
-);
+-- NOTE: live_snapshot was historically defined here with an old shape, then
+-- redefined by migration v8.6. On fresh builds the v8.6 migration's
+-- `CREATE TABLE IF NOT EXISTS` was silently skipped, leaving the wrong
+-- schema. Definition removed; v8.6 is now the single source of truth
+-- (and it now uses DROP TABLE IF EXISTS + CREATE TABLE to be idempotent).
+-- See: migration_v8.6_live_snapshot.sql
 
 COMMENT ON TABLE live_snapshot IS 'Hourly live data for mobile dashboard. 48hr retention. MER is approximate — Meta data has 15-60 min lag.';
 

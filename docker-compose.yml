@@ -10,7 +10,11 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./sql/migrations:/docker-entrypoint-initdb.d
+      # IMPORTANT: Do NOT rely on Docker's auto-migration.
+      # docker-entrypoint-initdb.d sorts files alphabetically, which
+      # sorts v8.1 before v8.00 and v8.10 before v8.2. Apply migrations
+      # in version order with:
+      #   bash scripts/core/apply_migrations.sh
     ports:
       - "5432:5432"
     restart: unless-stopped

@@ -27,6 +27,59 @@ Getting this wrong causes orders placed after 11pm local time to appear on the w
 
 Claude Chat can help you find and update every occurrence during Step 2 onboarding. A global search for `Europe/London` across the repo will show every location that needs changing.
 
+## ⚠️ Multi-Currency Warning
+
+**This pipeline was built for a single-currency GBP store.**
+
+If your store operates in a different currency (USD, AUD, NZD etc.) the pipeline will still work BUT metrics that combine data from multiple sources (MER, P&L, ROAS) may be incorrect if those sources use different currencies. Specifically:
+
+- Meta ad spend is reported in your **ad account currency**
+- Shopify revenue is in your **store currency**
+- If these differ, MER = revenue/spend will be mathematically wrong
+
+**Known affected metrics:** MER, ROAS, After Meta%, Operating Profit, Net Cash, all P&L views, live snapshot Est. Net.
+
+**Workaround (manual):** Set your Meta ad account currency to match your store currency in Meta Business Manager.
+
+**Planned fix:** A full FX/multi-currency layer with daily exchange rates is planned for a future release. This will add an `fx_rates` table and convert all values to a single reporting currency on ingest.
+
+For now, single-currency stores (store currency = ad account currency) are fully supported. Multi-currency stores should proceed with caution and validate their MER figures against Shopify's native reports.
+
+## Installing dependencies
+
+```bash
+# Core (required)
+pip install -r requirements-core.txt
+
+# Optional — install only what you need
+pip install -r requirements-optional.txt
+```
+
+## Database setup
+
+After `docker compose up -d`, apply migrations in version order (do NOT rely on Docker's auto-init — it sorts files alphabetically, which breaks v8.1 before v8.00 etc):
+
+```bash
+bash scripts/core/apply_migrations.sh
+```
+
+## Starting the dashboard API
+
+```bash
+# Copy and configure the systemd unit
+sudo cp nginx/dashboard.service /etc/systemd/system/pod-dashboard.service
+# Edit the unit file — replace YOUR_BRAND_ID and YOUR_SYSTEM_USER
+sudo nano /etc/systemd/system/pod-dashboard.service
+sudo systemctl daemon-reload
+sudo systemctl enable pod-dashboard
+sudo systemctl start pod-dashboard
+sudo systemctl status pod-dashboard
+```
+
+### Nginx configuration
+
+Update `nginx/dashboard.conf` — replace `YOUR_BRAND_ID` with your actual brand directory name before copying to `/etc/nginx/sites-available/`.
+
 ## Step 1 — Server
 
 - What VPS provider are you using? (Hetzner recommended — CX32 at ~£8/mo)
@@ -41,10 +94,18 @@ Claude Chat can help you find and update every occurrence during Step 2 onboardi
 - Do you have a Private App / Custom App set up with API access? If not, Claude will guide you.
   - Required scopes: `read_orders`, `read_products`, `read_customers`, `read_inventory`, `read_shopify_payments_payouts`
 
+> **2026+ gotcha — permanent tokens.** Shopify no longer issues permanent access tokens for new Custom Apps. Use a Private App (if still available on your plan) or implement token rotation. Work through this with Claude Chat — Shopify's auth flow has changed significantly.
+
 ### Meta Ads
 
 - Do you have a Meta Business Manager account?
 - Do you have a Marketing API access token? If not, Claude will guide you through generating one via the Meta for Developers console.
+
+> **Meta API gotcha — system-user approval.** During Meta API setup you may be asked to approve a system user via email. This email sometimes does not arrive. If stuck:
+> 1. Try re-sending the approval from Meta Business Manager.
+> 2. Check spam folders.
+> 3. Use a personal Meta account's token temporarily for testing.
+> 4. Work through this with Claude Chat — the Meta auth flow is the most common setup blocker.
 
 ### GA4
 
@@ -59,6 +120,12 @@ Answer yes/no to each:
 - [ ] Gelato
 - [ ] Printify
 - [ ] Other (note: manual COGS entry only — no automated reconciliation)
+
+> **Printify — first run.** On first run, pass `--all-unmatched` to backfill historical unmatched orders:
+> ```bash
+> python3 scripts/optional/printify_postgres_sync.py --all-unmatched
+> ```
+> Subsequent nightly runs via cron do not need this flag.
 
 **Email marketing:**
 - [ ] Klaviyo
