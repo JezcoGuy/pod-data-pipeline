@@ -28,7 +28,7 @@ from dotenv import load_dotenv
 
 # ─── ENV ──────────────────────────────────────────────────────────────────────
 
-load_dotenv("/opt/your_brand_id/.env")
+load_dotenv()
 
 SMTP_HOST   = os.getenv('SMTP_HOST')
 # Use 587 (STARTTLS) by default — works on most VPS providers. 465 is

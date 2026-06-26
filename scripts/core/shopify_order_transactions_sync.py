@@ -42,7 +42,7 @@ from dotenv import load_dotenv
 
 # ─── ENV ──────────────────────────────────────────────────────────────────────
 
-load_dotenv("/opt/your_brand_id/.env")
+load_dotenv()
 
 SHOPIFY_STORE   = os.getenv("SHOPIFY_STORE_NAME")
 SHOPIFY_TOKEN   = os.getenv("SHOPIFY_ACCESS_TOKEN")
@@ -59,7 +59,7 @@ LOG_FILE        = os.getenv("OT_LOG_FILE", "logs/shopify_order_transactions.log"
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "30"))
 
 if not SHOPIFY_STORE or not SHOPIFY_TOKEN:
-    sys.exit("ERROR: SHOPIFY_STORE_NAME and SHOPIFY_ACCESS_TOKEN must be set in /opt/your_brand_id/.env")
+    sys.exit("ERROR: SHOPIFY_STORE_NAME and SHOPIFY_ACCESS_TOKEN must be set in .env")
 
 BASE_URL = f"https://{SHOPIFY_STORE}.myshopify.com/admin/api/{API_VERSION}"
 HEADERS  = {"X-Shopify-Access-Token": SHOPIFY_TOKEN, "Content-Type": "application/json"}

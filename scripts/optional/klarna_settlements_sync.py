@@ -47,7 +47,7 @@ from dotenv import load_dotenv
 
 # ─── ENV ──────────────────────────────────────────────────────────────────────
 
-load_dotenv("/opt/your_brand_id/.env", override=True)
+load_dotenv(override=True)
 
 KLARNA_USER = os.environ["KLARNA_USERNAME"]
 KLARNA_PASS = os.environ["KLARNA_PASSWORD"]

@@ -31,7 +31,7 @@ import psycopg2
 import psycopg2.extras
 from dotenv import load_dotenv
 
-load_dotenv("/opt/your_brand_id/.env", override=True)
+load_dotenv(override=True)
 
 BRAND_ID    = os.getenv("BRAND_ID", "your_brand_id")
 DB_HOST     = os.getenv("DB_HOST", "localhost")

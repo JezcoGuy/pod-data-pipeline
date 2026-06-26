@@ -40,7 +40,7 @@ from googleapiclient.errors import HttpError
 
 # ─── ENV ──────────────────────────────────────────────────────────────────────
 
-load_dotenv("/opt/your_brand_id/.env")
+load_dotenv()
 
 GSC_TOKEN_FILE   = os.getenv("GSC_TOKEN_FILE", "/opt/your_brand_id/credentials/gsc_token.pickle")
 GSC_SITE_URL     = os.getenv("GSC_SITE_URL", "sc-domain:your-domain.com")

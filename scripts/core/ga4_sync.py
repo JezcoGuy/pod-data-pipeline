@@ -36,7 +36,7 @@ from google.oauth2 import service_account
 
 # ─── ENV ──────────────────────────────────────────────────────────────────────
 
-load_dotenv("/opt/your_brand_id/.env")
+load_dotenv()
 
 GA4_PROPERTY      = os.getenv("GA4_PROPERTY")
 GA4_KEY_FILE      = os.getenv("GA4_KEY_FILE")

@@ -54,7 +54,7 @@ def find_env_file():
     candidates = [
         Path(__file__).parent / ".env",
         Path.cwd() / ".env",
-        Path("/opt/your_brand_id/.env"),
+        Path(".env"),
     ]
     for p in candidates:
         if p.exists():
@@ -257,7 +257,7 @@ def main():
     print(f"   ({expires_in // 3600}h {(expires_in % 3600) // 60}m from now)")
     print()
     print("Next steps:")
-    print(f"  1. Copy these three lines from {env_path} to the VPS .env at /opt/your_brand_id/.env:")
+    print(f"  1. Copy these three lines from {env_path} to the VPS .env at .env:")
     print( "       MONZO_ACCESS_TOKEN=...")
     print( "       MONZO_REFRESH_TOKEN=...")
     print( "       MONZO_TOKEN_EXPIRES=...")

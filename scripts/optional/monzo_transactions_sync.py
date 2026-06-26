@@ -8,7 +8,7 @@ can tune them without touching the script.
 
 Token handling: the access token from monzo_auth.py expires in ~6h. This
 script proactively refreshes whenever MONZO_TOKEN_EXPIRES is within 5 minutes
-of now, and writes the rotated tokens straight back into /opt/your_brand_id/.env
+of now, and writes the rotated tokens straight back into .env
 (via the same line-preserving writer used by monzo_auth.py).
 
 Backfill strategy: Monzo's /transactions endpoint rejects single windows
@@ -43,7 +43,7 @@ from dotenv import load_dotenv
 
 # ─── ENV ──────────────────────────────────────────────────────────────────────
 
-ENV_PATH = Path("/opt/your_brand_id/.env")
+ENV_PATH = Path(".env")
 load_dotenv(ENV_PATH, override=True)
 
 DB_HOST     = os.getenv("DB_HOST", "localhost")

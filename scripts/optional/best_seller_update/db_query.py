@@ -9,7 +9,7 @@ Postgres helpers for best_seller_sync (v2).
 - record_sync_run(): inserts one row into best_seller_sync_runs after
   every successful --execute. Read by nightly_alert.check_best_seller_sync.
 
-Uses global /opt/your_brand_id/.env credentials.
+Uses global .env credentials.
 """
 
 import json
@@ -18,7 +18,7 @@ import os
 import psycopg2
 from dotenv import load_dotenv
 
-load_dotenv("/opt/your_brand_id/.env")
+load_dotenv()
 
 
 def _connect():

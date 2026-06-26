@@ -1,11 +1,14 @@
 import os
+import smtplib
 from decimal import Decimal
+from email.message import EmailMessage
 
 import psycopg2
 from dotenv import load_dotenv
 from fastapi import Body, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -13,7 +16,7 @@ from slowapi.util import get_remote_address
 # Pull TASK_PIN (and anything else) from the shared project .env. DB_PASSWORD
 # is set via systemd Environment= and overrides; load_dotenv() leaves
 # already-set env vars alone by default.
-load_dotenv("/opt/your_brand_id/.env")
+load_dotenv()  # picks up .env from the working directory
 
 app = FastAPI()
 limiter = Limiter(key_func=get_remote_address)
@@ -22,16 +25,20 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["GET"],
+    allow_origins=[
+        "https://your-domain.com",
+        "https://www.your-domain.com",
+    ],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type"],
 )
 
 DB_CONFIG = {
-    "host": "127.0.0.1",
-    "port": 5432,
-    "database": "your_db_name",
-    "user": "your_brand_id",
-    "password": os.environ.get("DB_PASSWORD"),
+    "host":     os.getenv("DB_HOST", "127.0.0.1"),
+    "port":     int(os.getenv("DB_PORT", "5432")),
+    "database": os.getenv("DB_NAME"),
+    "user":     os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
 }
 
 # Shared secret for /tasks/add and /time-log/add. Read endpoints (priority,
@@ -396,3 +403,124 @@ def get_category_signals(request: Request):
     rows = cur.fetchall()
     cur.close(); conn.close()
     return [{"category": c, "level": l, "signal": s} for (c, l, s) in rows]
+
+
+# ─── EU Withdrawal Form ───────────────────────────────────────────────────────
+# Public POST endpoint behind https://api.your-domain.com/withdrawal — receives
+# consumer withdrawal-of-purchase requests, logs to DB (idempotent via
+# request_id UNIQUE), and fires confirmation + internal SMTP notifications.
+
+class WithdrawalRequest(BaseModel):
+    request_id: str
+    full_name: str
+    email: str
+    order_reference: str
+    additional_details: str = ''
+    withdrawal_statement: str = ''
+    submitted_at: str
+    submitted_at_local: str = ''
+    page_url: str = ''
+
+
+@app.post("/withdrawal")
+async def submit_withdrawal(data: WithdrawalRequest, request: Request):
+    client_ip = request.client.host if request.client else None
+
+    # 1. Log to DB (idempotent on request_id)
+    conn = psycopg2.connect(**DB_CONFIG)
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO withdrawal_requests (
+            brand_id, request_id, full_name, email,
+            order_reference, additional_details, withdrawal_statement,
+            submitted_at, submitted_at_local, page_url, ip_address
+        ) VALUES (
+            'your_brand_id', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+        ) ON CONFLICT (request_id) DO NOTHING
+    """, (
+        data.request_id, data.full_name, data.email,
+        data.order_reference, data.additional_details,
+        data.withdrawal_statement, data.submitted_at,
+        data.submitted_at_local, data.page_url,
+        client_ip,
+    ))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    # 2. Send emails
+    _send_withdrawal_confirmation(data)
+    _send_withdrawal_internal(data, client_ip)
+
+    return {"success": True, "message": "Withdrawal request received"}
+
+
+def _send_withdrawal_confirmation(data: WithdrawalRequest):
+    first_name = data.full_name.split()[0] if data.full_name else "Customer"
+    additional_block = (
+        f"\n  Additional details: {data.additional_details}"
+        if data.additional_details else ""
+    )
+    msg = EmailMessage()
+    msg['Subject'] = f'Withdrawal Request Received — Order {data.order_reference}'
+    msg['From']    = os.getenv('SMTP_FROM')
+    msg['To']      = data.email
+    msg.set_content(f"""Dear {first_name},
+
+We confirm receipt of your withdrawal request submitted on {data.submitted_at_local or data.submitted_at}.
+
+Your request details:
+  Name:            {data.full_name}
+  Email:           {data.email}
+  Order reference: {data.order_reference}
+  Submitted:       {data.submitted_at_local or data.submitted_at}{additional_block}
+
+Under your rights as an EU consumer, your withdrawal has been recorded at the date and time shown above.
+
+We will review your request and contact you within 48 business hours regarding next steps, including any return instructions and refund timeline.
+
+If you have any questions in the meantime, please contact us at support@your-domain.com.
+
+Kind regards,
+Your Brand Customer Service
+your-domain.com
+""")
+    _smtp_send(msg)
+
+
+def _send_withdrawal_internal(data: WithdrawalRequest, client_ip: str | None):
+    msg = EmailMessage()
+    msg['Subject'] = f'[Withdrawal Request] {data.order_reference} — {data.full_name}'
+    msg['From']    = os.getenv('SMTP_FROM')
+    msg['To']      = os.getenv('SMTP_TO')
+    msg.set_content(f"""New EU withdrawal request received.
+
+Name:         {data.full_name}
+Email:        {data.email}
+Order:        {data.order_reference}
+Submitted:    {data.submitted_at_local or data.submitted_at}
+Additional:   {data.additional_details or 'None'}
+Request ID:   {data.request_id}
+Page URL:     {data.page_url}
+IP Address:   {client_ip or 'unknown'}
+""")
+    _smtp_send(msg)
+
+
+def _smtp_send(msg: EmailMessage):
+    port = int(os.getenv('SMTP_PORT', '587'))
+    host = os.getenv('SMTP_HOST')
+    user = os.getenv('SMTP_USER') or os.getenv('SMTP_FROM')
+    password = os.getenv('SMTP_PASS')
+    if port == 465:
+        # Implicit SSL
+        with smtplib.SMTP_SSL(host, port) as s:
+            s.login(user, password)
+            s.send_message(msg)
+    else:
+        # STARTTLS (587 default — works on more VPS providers than 465)
+        with smtplib.SMTP(host, port) as s:
+            s.ehlo()
+            s.starttls()
+            s.login(user, password)
+            s.send_message(msg)

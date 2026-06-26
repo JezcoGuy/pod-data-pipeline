@@ -7,7 +7,7 @@ Mirrors the auth + mutation patterns from shopify_tag_sync_hero.py:
 add/remove tags via productUpdate. No REST/collection helpers — v2 does
 not touch collections directly.
 
-Loads /opt/your_brand_id/.env. SHOPIFY_STORE_NAME=c71080-84 is suffixed with
+Loads .env. SHOPIFY_STORE_NAME=c71080-84 is suffixed with
 `.myshopify.com` automatically (same as the rest of the pipeline scripts).
 """
 
@@ -16,7 +16,7 @@ import os
 import requests
 from dotenv import load_dotenv
 
-load_dotenv("/opt/your_brand_id/.env")
+load_dotenv()
 
 REQUEST_TIMEOUT = 30
 
@@ -27,7 +27,7 @@ def get_env():
     version = os.getenv("API_VERSION", "2025-04")
 
     if not shop_raw or not token:
-        raise RuntimeError("Missing SHOPIFY_STORE_NAME/SHOP_DOMAIN or SHOPIFY_ACCESS_TOKEN in /opt/your_brand_id/.env")
+        raise RuntimeError("Missing SHOPIFY_STORE_NAME/SHOP_DOMAIN or SHOPIFY_ACCESS_TOKEN in .env")
 
     shop = shop_raw if "." in shop_raw else f"{shop_raw}.myshopify.com"
     endpoint = f"https://{shop}/admin/api/{version}/graphql.json"

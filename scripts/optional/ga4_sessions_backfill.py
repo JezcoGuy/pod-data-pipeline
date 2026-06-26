@@ -49,7 +49,7 @@ import psycopg2
 import psycopg2.extras
 from dotenv import load_dotenv
 
-load_dotenv("/opt/your_brand_id/.env", override=True)
+load_dotenv(override=True)
 
 DB_HOST     = os.getenv("DB_HOST", "localhost")
 DB_PORT     = os.getenv("DB_PORT", "5432")

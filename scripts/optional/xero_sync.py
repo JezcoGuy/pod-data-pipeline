@@ -38,7 +38,7 @@ from dotenv import load_dotenv
 
 # ─── ENV ──────────────────────────────────────────────────────────────────────
 
-load_dotenv("/opt/your_brand_id/.env")
+load_dotenv()
 
 CLIENT_ID     = os.getenv("XERO_CLIENT_ID")
 CLIENT_SECRET = os.getenv("XERO_CLIENT_SECRET")

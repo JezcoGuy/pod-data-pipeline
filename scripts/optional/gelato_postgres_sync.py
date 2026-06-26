@@ -5,11 +5,6 @@ Syncs Gelato order data to PostgreSQL.
 Writes to unified fulfilments table (provider agnostic).
 Also re-checks in_transit orders to catch delivery status updates.
 
-NOTE: Gelato costs are stored as-is in the pipeline's base currency.
-If your Gelato account operates in a different currency than your
-Shopify store, costs will need manual FX conversion.
-Full multi-currency support is planned for a future release.
-
 API: Gelato API v4
 Author: Your Brand Data Pipeline
 
@@ -61,7 +56,7 @@ SMTP_TO     = os.getenv('SMTP_TO')
 
 GELATO_ALERT_HOURS      = int(os.getenv('GELATO_ALERT_HOURS', '48'))
 DEFAULT_LOOKBACK        = int(os.getenv('DEFAULT_LOOKBACK_DAYS', '7'))
-TRANSIT_RECHECK_DAYS   = int(os.getenv('TRANSIT_RECHECK_DAYS', '30'))  # recheck in_transit for last 30 days
+TRANSIT_RECHECK_DAYS   = int(os.getenv('TRANSIT_RECHECK_DAYS', '60'))  # recheck non-terminal Gelato orders placed in last 60 days
 REQUEST_TIMEOUT         = int(os.getenv('REQUEST_TIMEOUT', '10'))
 LOG_FILE                = os.getenv('LOG_FILE_PATH', 'logs/gelato_sync.log')
 
@@ -246,9 +241,14 @@ def get_orders_to_sync(conn, lookback_days=None, all_unmatched=False, single_ord
 
 def get_intransit_orders_to_recheck(conn):
     """
-    Get provider_order_ids for Gelato orders currently in_transit
-    within the last TRANSIT_RECHECK_DAYS.
-    These need rechecking to catch delivered status updates.
+    Get provider_order_ids for Gelato orders in any non-terminal status,
+    placed within the last TRANSIT_RECHECK_DAYS. These need rechecking
+    to catch the in_production → shipped → delivered transitions.
+
+    Window is bounded by orders.created_at (always populated by Shopify),
+    NOT fulfilments.dispatched_at — that field is the very thing we're
+    trying to populate, so filtering on it is circular: orders stuck
+    pre-dispatch would never be rechecked and never gain a dispatched_at.
     """
     cutoff = datetime.now(timezone.utc) - timedelta(days=TRANSIT_RECHECK_DAYS)
     with conn.cursor() as cur:
@@ -260,12 +260,12 @@ def get_intransit_orders_to_recheck(conn):
             WHERE f.provider = 'gelato'
               AND f.brand_id = %s
               AND f.fulfilment_status NOT IN ('delivered','cancelled','canceled','returned','not_connected')
-              AND f.dispatched_at >= %s
+              AND o.created_at >= %s
               AND f.override_flag = FALSE
-            ORDER BY f.dispatched_at DESC
+            ORDER BY o.created_at DESC
         """, (BRAND_ID, cutoff))
         rows = cur.fetchall()
-        logger.info(f'In-transit orders to recheck: {len(rows)}')
+        logger.info(f'Non-terminal Gelato orders to recheck: {len(rows)}')
         return rows
 
 

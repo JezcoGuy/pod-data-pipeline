@@ -36,7 +36,7 @@ from dotenv import load_dotenv
 
 # ─── ENV ──────────────────────────────────────────────────────────────────────
 
-load_dotenv("/opt/your_brand_id/.env")
+load_dotenv()
 
 KLAVIYO_API_KEY   = os.getenv("KLAVIYO_API_KEY")
 KLAVIYO_REVISION  = os.getenv("KLAVIYO_API_REVISION", "2024-10-15")

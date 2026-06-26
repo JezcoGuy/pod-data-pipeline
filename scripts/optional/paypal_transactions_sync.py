@@ -47,7 +47,7 @@ from dotenv import load_dotenv
 
 # ─── ENV ──────────────────────────────────────────────────────────────────────
 
-load_dotenv("/opt/your_brand_id/.env", override=True)
+load_dotenv(override=True)
 
 CLIENT_ID    = os.environ["PAYPAL_CLIENT_ID"]
 CLIENT_SEC   = os.environ["PAYPAL_SECRET"]

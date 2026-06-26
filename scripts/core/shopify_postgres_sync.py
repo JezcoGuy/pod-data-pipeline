@@ -27,7 +27,7 @@ from dotenv import load_dotenv
 
 # ─── ENV ──────────────────────────────────────────────────────────────────────
 
-load_dotenv("/opt/your_brand_id/.env")
+load_dotenv()
 
 SHOPIFY_ACCESS_TOKEN    = os.getenv('SHOPIFY_ACCESS_TOKEN')
 SHOPIFY_STORE           = os.getenv('SHOPIFY_STORE_NAME')
@@ -85,9 +85,10 @@ def test_db_connection():
 
 # ─── SHOPIFY API ──────────────────────────────────────────────────────────────
 
-BASE_URL        = f"https://{SHOPIFY_STORE}.myshopify.com/admin/api/2025-04"
-ORDERS_ENDPOINT = f"{BASE_URL}/orders.json"
-HEADERS         = {'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN}
+BASE_URL         = f"https://{SHOPIFY_STORE}.myshopify.com/admin/api/2025-04"
+ORDERS_ENDPOINT  = f"{BASE_URL}/orders.json"
+GRAPHQL_ENDPOINT = f"{BASE_URL}/graphql.json"
+HEADERS          = {'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN}
 
 
 def request_with_retry(url, params=None, max_retries=3):
@@ -202,17 +203,82 @@ def derive_fulfillment_status(order):
     return order.get('fulfillment_status') or 'unfulfilled'
 
 
+def fetch_refund_shop_money(order_id):
+    """
+    Pull refund-transaction shop-currency values via GraphQL.
+
+    Why GraphQL: REST's transactions array omits amount_set entirely (we
+    probed /orders/{id}.json and /orders/{id}/transactions.json with both
+    default and explicit fields= — neither returns it). GraphQL's
+    OrderTransaction.amountSet.shopMoney is the only place Shopify exposes
+    the canonical shop-currency value for refunds processed in a
+    non-shop currency (e.g. a USD refund on a GBP store).
+
+    Returns (total_gbp: float, gateway_breakdown: dict). Caller should
+    only invoke this for orders where the refund's REST transactions
+    have currency != shop currency; for GBP-native refunds the REST
+    amount field is already correct.
+    """
+    body = {
+        'query': """
+        query($id: ID!) {
+          order(id: $id) {
+            refunds {
+              transactions(first: 50) {
+                edges { node {
+                  kind status gateway
+                  amountSet { shopMoney { amount } }
+                } }
+              }
+            }
+          }
+        }""",
+        'variables': {'id': f'gid://shopify/Order/{order_id}'},
+    }
+    resp = requests.post(GRAPHQL_ENDPOINT, json=body, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+    resp.raise_for_status()
+    payload = resp.json()
+    order = (payload.get('data') or {}).get('order') or {}
+    total = 0.0
+    breakdown = {}
+    for refund in order.get('refunds', []):
+        for edge in (refund.get('transactions') or {}).get('edges', []):
+            node = edge.get('node') or {}
+            if node.get('kind') == 'REFUND' and node.get('status') == 'SUCCESS':
+                amt = float((node.get('amountSet') or {}).get('shopMoney', {}).get('amount') or 0)
+                gw  = node.get('gateway') or 'unknown'
+                total += amt
+                breakdown[gw] = round(breakdown.get(gw, 0) + amt, 4)
+    time.sleep(0.3)  # graphql is also rate-limited by the same bucket
+    return round(total, 4), breakdown
+
+
 def extract_refunds(order):
     """
-    Extract refund amount and gateway breakdown.
-    Prefers GBP transactions. Falls back to total_price - current_total_price for non-GBP.
+    Extract refund amount + gateway breakdown.
+
+    Fast path: when refund transactions are in shop currency (GBP),
+    sum them directly from the REST order detail.
+
+    Slow path (multi-currency): when refund transactions are in
+    presentment currency (e.g. USD refund on a GBP store), REST's
+    `amount` field is the presentment-currency value and amount_set
+    is omitted. Hit GraphQL to get the canonical shopMoney value.
+
+    Historical note: this used to fall back to
+    `total_price - current_total_price`, which silently conflated
+    "value removed from order" with "amount refunded to customer".
+    Restocking a line item without a proportional cash refund made
+    current_total_price drop further than the refund did, inflating
+    refund_amount_gbp. Example: CW13487 was recording £23.39 instead
+    of the true £1.74. See v8.32 backfill notes.
     """
-    total_price   = float(order.get('total_price', 0))
     refunds       = order.get('refunds', [])
     refunded_at   = refunds[0].get('processed_at') if refunds else None
     refund_amount = 0.0
     gateway_breakdown = {}
-    has_gbp_txn   = False
+    has_gbp_txn       = False
+    has_non_gbp_txn   = False
 
     for refund in refunds:
         for txn in refund.get('transactions', []):
@@ -224,10 +290,16 @@ def extract_refunds(order):
                     refund_amount += amount
                     gateway_breakdown[gw] = round(gateway_breakdown.get(gw, 0) + amount, 4)
                     has_gbp_txn = True
+                else:
+                    has_non_gbp_txn = True
 
-    if not has_gbp_txn and refunds:
-        current_total = float(order.get('current_total_price', total_price) or total_price)
-        refund_amount = round(total_price - current_total, 4)
+    if has_non_gbp_txn and not has_gbp_txn and refunds:
+        try:
+            refund_amount, gateway_breakdown = fetch_refund_shop_money(order['id'])
+        except Exception as e:
+            logger.warning(f'GraphQL refund lookup failed for order {order.get("id")}: {e}')
+            # Leave refund_amount at 0 — better an obvious zero than a wrong
+            # number derived from current_total_price math. Will retry next sync.
 
     return {
         'refund_amount_gbp':        round(refund_amount, 4),

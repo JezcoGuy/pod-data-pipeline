@@ -49,7 +49,7 @@ from dotenv import load_dotenv
 
 # ─── ENV ──────────────────────────────────────────────────────────────────────
 
-load_dotenv("/opt/your_brand_id/.env")
+load_dotenv()
 
 META_ACCESS_TOKEN   = os.getenv("META_ACCESS_TOKEN")
 META_AD_ACCOUNT_ID  = (os.getenv("META_AD_ACCOUNT_ID", "")
@@ -423,7 +423,11 @@ def fetch_catalogue_breakdown(ad_day_pairs):
             "filtering":      json.dumps([
                 {"field": "ad.id", "operator": "IN", "value": [ad_id]},
             ]),
-            "limit":          500,
+            # Insights breakdowns scale by (ads × days × products). Creative-
+            # heavy accounts can hit Meta's 500 'response too large' error.
+            # Drop META_INSIGHTS_PAGE_SIZE to 100 or 50 if that happens —
+            # separate from META_PAGE_SIZE which controls /ads pagination.
+            "limit":          int(os.getenv("META_INSIGHTS_PAGE_SIZE", "500")),
         }
         try:
             resp = request_with_retry(url, params=params)
